@@ -53,8 +53,16 @@ def format_round(result: dict) -> str:
     return "\n".join(lines)
 
 
-def run_demo() -> None:
-    """Exercise the pure pipeline on sample cards — no model or screen needed."""
+def run_demo(send: bool = False) -> None:
+    """
+    Exercise the pure pipeline on sample cards — no model or screen needed.
+
+    With send=True, also POST each sample round to your API — a model-free way to
+    verify the send path end-to-end against your backend.
+    """
+    import uuid
+    from datetime import datetime, timezone
+
     from game_logic.baccarat_engine import compute_result, is_rules_consistent
 
     samples = [
@@ -62,11 +70,23 @@ def run_demo() -> None:
         (["2_hearts", "3_spades", "9_diamonds"], ["6_clubs", "K_hearts"]),  # player draws to 4, banker 6 stands
         (["9_hearts", "K_spades"], ["7_clubs", "2_diamonds"]),             # tie, both natural 9
     ]
-    logger.info("Running DEMO on sample hands (no model required)")
+    logger.info(f"Running DEMO on sample hands (no model required) | send={send}")
+
+    if send:
+        from api_client.sender import start_sender, stop_sender, submit
+        start_sender()
+
     for player, banker in samples:
         result = compute_result(player, banker)
         result["rules_consistent"] = is_rules_consistent(player, banker)
+        result["round_id"] = f"DEMO-{datetime.now(timezone.utc):%H%M%S}-{uuid.uuid4().hex[:6]}"
+        result["timestamp"] = datetime.now(timezone.utc).isoformat()
         print(format_round(result))
+        if send:
+            submit(result)
+
+    if send:
+        stop_sender()
 
 
 def run_calibrate() -> None:
@@ -181,10 +201,12 @@ def main() -> None:
                         help="model path (overrides MODEL_WEIGHTS_PATH); used by --detect")
     parser.add_argument("--conf", type=float, default=0.25,
                         help="confidence threshold for --detect (default 0.25)")
+    parser.add_argument("--send", action="store_true",
+                        help="with --demo: also POST the sample rounds to your API")
     args = parser.parse_args()
 
     if args.demo:
-        run_demo()
+        run_demo(send=args.send)
     elif args.calibrate:
         run_calibrate()
     elif args.detect:
