@@ -62,10 +62,13 @@ python main.py --demo
 # 2. Tune the ROI boxes to your window (saves annotated screenshots):
 python main.py --calibrate
 
-# 3. Recognize a single saved frame (needs a trained model):
+# 3. Test a model on a whole image, no calibration (see "Quick test without training"):
+python main.py --detect path/to/cards.jpg
+
+# 4. Recognize a baccarat frame through the ROI pipeline (needs calibrated ROIs + model):
 python main.py --image path/to/frame.png
 
-# 4. Watch the screen live and recognize on each WIN badge:
+# 5. Watch the screen live and recognize on each WIN badge:
 python main.py --live
 ```
 
@@ -86,6 +89,31 @@ window and **will not match your screen**. Workflow:
 3. Open `calibration_region_annotated.png` → nudge the card/badge/score ROIs.
 4. Repeat until the boxes sit exactly on the cards, the WIN badge, and the
    score circles.
+
+## Quick test without training
+
+You don't have to train to see recognition work — borrow a public model and run
+it on a photo of real cards with `--detect` (whole image, no ROI calibration):
+
+```bash
+mkdir -p models/weights
+# A public YOLOv8 playing-card model (trained on the Roboflow cards dataset):
+wget -O models/weights/best.pt \
+  https://github.com/noorkhokhar99/Playing-Cards-Detection-with-YoloV8/raw/main/yolov8s_playing_cards.pt
+
+python main.py --detect some_cards_photo.jpg     # prints detections + saves *_detected.jpg
+```
+
+`--detect` lists every detected class with its parsed rank/value and writes an
+annotated image, so you can tell at a glance whether the model works. Pass
+`--conf 0.1` to loosen the threshold or `--weights other.pt` to try another model.
+
+**Expect a gap on game screens.** These models are trained on *photographed*
+cards — great on real-card photos, but they may miss your baccarat game's
+*rendered* cards. If `--detect` finds nothing on an actual game frame, that's the
+domain gap, and a short fine-tune on your own frames (the `model/` scripts + your
+3080) is the fix. Alternative model:
+[mustafakemal0146/playing-cards-yolov8](https://huggingface.co/mustafakemal0146/playing-cards-yolov8).
 
 ## Training a model
 
