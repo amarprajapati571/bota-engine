@@ -150,16 +150,23 @@ def run_detect(path: str, weights: str | None, conf: float) -> None:
 
 
 def run_live() -> None:
+    from api_client.sender import start_sender, stop_sender, submit
     from capture.screen_agent import run_capture_loop
     from pipeline.recognize import recognize_round
+
+    start_sender()
 
     def on_trigger(frame):
         result = recognize_round(frame)
         if result is not None:
             print(format_round(result))
+            submit(result)   # queued; the sender thread POSTs it to the API
 
-    logger.info("Live mode — press Ctrl-C to stop.")
-    run_capture_loop(on_trigger_callback=on_trigger)
+    logger.info("Live mode — monitoring for WIN popup. Press Ctrl-C to stop.")
+    try:
+        run_capture_loop(on_trigger_callback=on_trigger)
+    finally:
+        stop_sender()   # drain pending sends before exit
 
 
 def main() -> None:

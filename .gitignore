@@ -13,9 +13,11 @@ env/
 *.onnx
 models/weights/
 
-# Logs
+# Logs / runtime data
 logs/
 *.log
+*.jsonl
+tools/received_rounds.jsonl
 
 # Calibration / capture artifacts
 calibration_*.png

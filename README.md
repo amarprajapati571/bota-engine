@@ -68,7 +68,7 @@ python main.py --detect path/to/cards.jpg
 # 4. Recognize a baccarat frame through the ROI pipeline (needs calibrated ROIs + model):
 python main.py --image path/to/frame.png
 
-# 5. Watch the screen live and recognize on each WIN badge:
+# 5. Monitor for the WIN popup, recognize on each one, and POST to your API:
 python main.py --live
 ```
 
@@ -152,6 +152,38 @@ datasets work without renaming — only the **rank** matters for baccarat scorin
 To label your own frames instead, use [`model/cards.yaml`](model/cards.yaml) as
 the dataset config (52 classes in the `<rank>_<suit>` convention).
 
+## Sending results to an API (`--live`)
+
+`--live` is the runtime loop: it monitors for the gold WIN popup, recognizes the
+round on each one, and POSTs the result to your backend.
+
+```
+WIN popup ─▶ recognize_round ─▶ sender queue ─▶ background thread ─▶ POST {API_BASE_URL}{API_RESULT_PATH}
+```
+
+Design notes:
+- **Non-blocking:** sending runs on a background thread, so a slow/dead API never
+  stalls screen capture.
+- **Durable:** failed POSTs (after `API_MAX_RETRIES` with backoff) are appended to
+  `logs/outbox.jsonl` — nothing is lost while the API is down; replay it later.
+- **Deduped:** if the popup lingers and re-triggers, the same round (same cards +
+  outcome) isn't posted twice within a short window.
+- **Auth:** set `API_JWT_SECRET` for a signed JWT per request, or `API_TOKEN` for a
+  static Bearer, or neither for an open backend.
+- Leave `API_BASE_URL` empty to disable sending (recognition still runs/prints).
+
+**Test the whole loop with no real backend** — a zero-dependency mock receiver:
+
+```bash
+python tools/mock_api.py                       # terminal 1: listens on :8000
+# in .env: API_BASE_URL=http://localhost:8000
+python main.py --live                          # terminal 2: rounds appear in terminal 1
+```
+
+The POST body is the full round dict (cards, values, outcome, `validation_passed`,
+`confidence_level`, `round_id`, `timestamp`, …). Point `API_BASE_URL` at your own
+server when ready.
+
 ## Layout
 
 ```
@@ -159,10 +191,12 @@ capture/        screen capture, ROI config, calibration
 recognition/    YOLOv8 wrapper, EasyOCR reader, confidence filter, device pick
 game_logic/     pure baccarat rules engine + OCR/rules validator
 pipeline/       frame → structured round result (no side effects)
+api_client/     JWT/bearer auth, retrying HTTP client, background sender thread
 model/          dataset download, augmentation, YOLOv8 training, cards.yaml
 monitoring/     loguru setup
+tools/          mock_api.py — stdlib test receiver
 tests/          baccarat engine unit tests
-main.py         --demo / --calibrate / --image / --live
+main.py         --demo / --calibrate / --detect / --image / --live
 ```
 
 ## Known limitations

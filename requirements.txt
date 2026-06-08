@@ -13,6 +13,10 @@ torch                  # CPU/MPS wheel on macOS; CUDA wheel on Linux+GPU
 torchvision
 easyocr
 
+# API push (--live -> backend)
+requests
+PyJWT
+
 # Config + logging
 python-dotenv
 loguru
