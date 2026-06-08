@@ -1,0 +1,18 @@
+# Baccarat CV core — recognition pipeline only (no queue/API/backend).
+# Pinning is left loose for a learning project; pin versions before any real deployment.
+
+# Screen capture + image processing
+mss
+opencv-python
+numpy
+Pillow
+
+# Detection + OCR
+ultralytics            # YOLOv8
+torch                  # CPU/MPS wheel on macOS; CUDA wheel on Linux+GPU
+torchvision
+easyocr
+
+# Config + logging
+python-dotenv
+loguru

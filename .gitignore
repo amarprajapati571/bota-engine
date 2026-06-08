@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Env / secrets
+.env
+
+# Models & weights (large binaries)
+*.pt
+*.onnx
+models/weights/
+
+# Logs
+logs/
+*.log
+
+# Calibration / capture artifacts
+calibration_*.png
+dataset/
+
+# Training output
+runs/
+yolov8*.pt
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Claude Code (local session config)
+.claude/

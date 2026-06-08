@@ -1,0 +1,69 @@
+# YOLOv8 dataset config — TEMPLATE for hand-labeling your own frames.
+#
+# If you downloaded a dataset from Roboflow (model/download_dataset.py), use the
+# data.yaml that ships inside ./dataset/ instead — its class order matches the
+# downloaded labels. This file is for the case where you label your own captured
+# frames using this project's "<rank>_<suit>" naming convention.
+#
+# `path` is relative to where you run `yolo`/train.py (the project root).
+# Class indices below MUST match the integers in your .txt label files
+# (0 = A_clubs, 1 = 2_clubs, ... 51 = K_spades).
+
+path: ./dataset
+train: labeled/images        # or train/images for a split dataset
+val: labeled/images          # point at a real validation split for honest metrics
+# test: test/images
+
+names:
+  0:  A_clubs
+  1:  2_clubs
+  2:  3_clubs
+  3:  4_clubs
+  4:  5_clubs
+  5:  6_clubs
+  6:  7_clubs
+  7:  8_clubs
+  8:  9_clubs
+  9:  10_clubs
+  10: J_clubs
+  11: Q_clubs
+  12: K_clubs
+  13: A_diamonds
+  14: 2_diamonds
+  15: 3_diamonds
+  16: 4_diamonds
+  17: 5_diamonds
+  18: 6_diamonds
+  19: 7_diamonds
+  20: 8_diamonds
+  21: 9_diamonds
+  22: 10_diamonds
+  23: J_diamonds
+  24: Q_diamonds
+  25: K_diamonds
+  26: A_hearts
+  27: 2_hearts
+  28: 3_hearts
+  29: 4_hearts
+  30: 5_hearts
+  31: 6_hearts
+  32: 7_hearts
+  33: 8_hearts
+  34: 9_hearts
+  35: 10_hearts
+  36: J_hearts
+  37: Q_hearts
+  38: K_hearts
+  39: A_spades
+  40: 2_spades
+  41: 3_spades
+  42: 4_spades
+  43: 5_spades
+  44: 6_spades
+  45: 7_spades
+  46: 8_spades
+  47: 9_spades
+  48: 10_spades
+  49: J_spades
+  50: Q_spades
+  51: K_spades

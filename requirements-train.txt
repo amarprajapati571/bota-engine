@@ -1,0 +1,7 @@
+# Training-only extras (the core recognition pipeline doesn't need these).
+#   pip install -r requirements.txt -r requirements-train.txt
+#
+# ultralytics + torch come from requirements.txt and do the actual training.
+
+roboflow          # dataset download (model/download_dataset.py)
+albumentations    # offline augmentation (model/augment.py)
