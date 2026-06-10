@@ -4,14 +4,11 @@ Background sender.
 A worker thread drains an in-memory queue and POSTs each round via
 api_client.client.send_round, so the capture loop never blocks on the network.
 
-A short-window content dedup avoids double-posting the same physical round when
-the WIN popup lingers on screen long enough to re-trigger the capture loop.
-(This is keyed on the actual cards + outcome, not just the score values — two
-different rounds that happen to share a score are still both sent.)
+Deduplication happens upstream at the trigger boundary (pipeline.dedup), so the
+same payload submitted here is always sent.
 """
 import queue
 import threading
-import time
 
 from loguru import logger
 
@@ -21,27 +18,9 @@ _q: "queue.Queue[dict]" = queue.Queue()
 _stop = threading.Event()
 _thread: "threading.Thread | None" = None
 
-_last_sig: "str | None" = None
-_last_sig_time = 0.0
-_DEDUP_WINDOW_SECS = 15.0
-
-
-def _signature(payload: dict) -> str:
-    return (
-        f"{payload.get('player_cards')}|{payload.get('banker_cards')}|"
-        f"{payload.get('outcome')}"
-    )
-
 
 def submit(payload: dict) -> None:
-    """Queue a round for sending (deduped against the immediately previous one)."""
-    global _last_sig, _last_sig_time
-    sig = _signature(payload)
-    now = time.time()
-    if sig == _last_sig and (now - _last_sig_time) < _DEDUP_WINDOW_SECS:
-        logger.debug("Duplicate round within dedup window — not queued.")
-        return
-    _last_sig, _last_sig_time = sig, now
+    """Queue a round for the background sender to POST."""
     _q.put(payload)
 
 

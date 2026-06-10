@@ -99,6 +99,7 @@ def run_image(path: str) -> None:
     import cv2
 
     from pipeline.recognize import recognize_round
+    from storage.results_store import store_round
 
     if not os.path.exists(path):
         logger.error(f"Image not found: {path}")
@@ -112,6 +113,7 @@ def run_image(path: str) -> None:
     if result is None:
         logger.warning("No round recognized in image.")
         return
+    store_round(result)
     print(format_round(result))
     print(json.dumps(result, indent=2))
 
@@ -172,17 +174,26 @@ def run_detect(path: str, weights: str | None, conf: float) -> None:
 def run_live() -> None:
     from api_client.sender import start_sender, stop_sender, submit
     from capture.screen_agent import run_capture_loop
+    from pipeline.dedup import is_new_round
     from pipeline.recognize import recognize_round
+    from storage.results_store import results_path, store_round
 
     start_sender()
+    logger.info(
+        f"Live mode — monitoring for WIN popup | results -> {results_path()} | Ctrl-C to stop."
+    )
 
     def on_trigger(frame):
         result = recognize_round(frame)
-        if result is not None:
-            print(format_round(result))
-            submit(result)   # queued; the sender thread POSTs it to the API
+        if result is None:
+            return
+        print(format_round(result))
+        if not is_new_round(result):
+            logger.info("Duplicate round (popup re-trigger) — not stored or sent.")
+            return
+        store_round(result)   # local durable record (JSONL), independent of the API
+        submit(result)        # queued; the sender thread POSTs it to the API
 
-    logger.info("Live mode — monitoring for WIN popup. Press Ctrl-C to stop.")
     try:
         run_capture_loop(on_trigger_callback=on_trigger)
     finally:

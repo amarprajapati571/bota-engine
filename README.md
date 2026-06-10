@@ -161,9 +161,16 @@ round on each one, and POSTs the result to your backend.
 WIN popup ─▶ recognize_round ─▶ sender queue ─▶ background thread ─▶ POST {API_BASE_URL}{API_RESULT_PATH}
 ```
 
+Every recognized round is **also stored locally** — appended as one JSON line to
+`RESULTS_FILE` (default `logs/results.jsonl`) — independent of the API, so you get
+a durable record even with no backend configured (`RESULTS_ENABLED=false` to turn
+it off). Inspect it with `tail -f logs/results.jsonl` or `wc -l logs/results.jsonl`.
+
 Design notes:
 - **Non-blocking:** sending runs on a background thread, so a slow/dead API never
   stalls screen capture.
+- **Deduped at the trigger:** if the popup lingers and re-fires, the round is
+  neither stored nor sent twice (matched on cards + outcome within a short window).
 - **Durable:** failed POSTs (after `API_MAX_RETRIES` with backoff) are appended to
   `logs/outbox.jsonl` — nothing is lost while the API is down; replay it later.
 - **Deduped:** if the popup lingers and re-triggers, the same round (same cards +
@@ -190,8 +197,9 @@ server when ready.
 capture/        screen capture, ROI config, calibration
 recognition/    YOLOv8 wrapper, EasyOCR reader, confidence filter, device pick
 game_logic/     pure baccarat rules engine + OCR/rules validator
-pipeline/       frame → structured round result (no side effects)
+pipeline/       frame → structured round result; trigger-boundary dedup
 api_client/     JWT/bearer auth, retrying HTTP client, background sender thread
+storage/        append each round to logs/results.jsonl (JSON Lines)
 model/          dataset download, augmentation, YOLOv8 training, cards.yaml
 monitoring/     loguru setup
 tools/          mock_api.py — stdlib test receiver
