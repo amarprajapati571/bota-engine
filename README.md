@@ -40,6 +40,14 @@ intentionally left out.
 
 Requires Python 3.10+ (developed/tested on 3.13).
 
+**One command (Ubuntu):**
+```bash
+bash scripts/setup.sh            # add --train for the dataset/training extras
+```
+Installs OpenCV's system libs, makes a venv, installs deps (Torch CUDA wheel on
+Linux+GPU), seeds `.env`, runs the smoke test. Then `source venv/bin/activate`.
+
+**Or manually:**
 ```bash
 python3 -m venv venv
 source venv/bin/activate
