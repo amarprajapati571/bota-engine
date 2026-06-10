@@ -186,8 +186,15 @@ the dataset config (52 classes in the `<rank>_<suit>` convention).
 
 ## Sending results to an API (`--live`)
 
-`--live` is the runtime loop: it monitors for the gold WIN popup, recognizes the
-round on each one, and POSTs the result to your backend.
+`--live` is the runtime loop: it monitors the screen, recognizes each hand,
+stores it, and POSTs the result to your backend. Two triggers:
+
+- `--trigger badge` *(default)* — fires on the gold WIN popup. Cheap (a color
+  check), but needs `WIN_BADGE_ROI` + `WIN_BADGE_GOLD_THRESHOLD` calibrated.
+- `--trigger cards` — runs the model continuously and fires once the detected
+  cards sit unchanged for ~1s (the hand has finished dealing). No badge needed —
+  ideal when watching a **video** where the cards themselves are the cue. Costs
+  more compute (fine on a GPU). Still needs the card ROIs + a model.
 
 ```
 WIN popup ─▶ recognize_round ─▶ sender queue ─▶ background thread ─▶ POST {API_BASE_URL}{API_RESULT_PATH}

@@ -13,7 +13,10 @@ Modes:
                                    logic) — the quickest way to test that a model
                                    detects cards at all. Use --weights / --conf.
   python main.py --image PATH      Run the full CV pipeline on a saved frame.
-  python main.py --live            Watch the screen and recognize on each WIN badge.
+  python main.py --live            Monitor the screen, recognize each hand, store + send.
+                                   --trigger badge : fire on the gold WIN popup (default)
+                                   --trigger cards : fire when cards appear (no badge;
+                                                     runs the model continuously)
 
 Heavy deps (torch, ultralytics, easyocr) are imported lazily, so --demo and
 --calibrate stay fast and don't require a trained model.
@@ -204,32 +207,90 @@ def run_detect(path: str, weights: str | None, conf: float) -> None:
     print(f"\nAnnotated image saved: {out}")
 
 
-def run_live() -> None:
+def _cards_triggered_loop(handle) -> None:
+    """
+    Detection-based trigger (no WIN badge needed).
+
+    Runs the model continuously; once the detected cards stay unchanged for ~1s
+    (i.e. the hand has finished dealing and is sitting on screen), fires
+    handle(frame) exactly once. Resets when the table clears, ready for the next
+    hand. Ideal when watching a video where the trigger is the cards themselves.
+    """
+    import time
+
+    from capture.roi_config import CAPTURE_FPS
+    from capture.screen_agent import capture_frame
+    from recognition.card_recognizer import recognize_cards
+
+    interval = 1.0 / max(CAPTURE_FPS, 1)
+    stable_needed = max(int(CAPTURE_FPS), 2)   # ~1s of unchanged cards = hand settled
+    last_sig, stable, logged_sig, empty = None, 0, None, 0
+
+    while True:
+        try:
+            frame = capture_frame()
+            player = [d["card"] for d in recognize_cards(frame, "player")]
+            banker = [d["card"] for d in recognize_cards(frame, "banker")]
+            sig = f"{sorted(player)}|{sorted(banker)}"
+
+            if player and banker:
+                empty = 0
+                stable = stable + 1 if sig == last_sig else 1
+                last_sig = sig
+                if stable >= stable_needed and sig != logged_sig:
+                    logged_sig = sig          # don't re-fire while the same hand is up
+                    handle(frame)
+            else:
+                empty += 1
+                if empty >= stable_needed:    # table cleared — arm for the next hand
+                    last_sig, stable, logged_sig = None, 0, None
+
+            time.sleep(interval)
+        except KeyboardInterrupt:
+            logger.info("Stopped by user.")
+            break
+        except Exception as exc:
+            logger.error(f"Cards-trigger error: {exc}")
+            time.sleep(1)
+
+
+def run_live(trigger: str = "badge") -> None:
+    weights = os.getenv("MODEL_WEIGHTS_PATH", "./models/weights/best.pt")
+    if not os.path.exists(weights):
+        logger.error(
+            f"Model not found: {weights} — --live needs a model. See README "
+            "('Quick test without training' or 'Training a model')."
+        )
+        sys.exit(1)
+
     from api_client.sender import start_sender, stop_sender, submit
-    from capture.screen_agent import run_capture_loop
     from pipeline.dedup import is_new_round
     from pipeline.recognize import recognize_round
     from storage.results_store import ensure_results_file, store_round
 
     results_file = ensure_results_file()   # create it now if not found
     start_sender()
-    logger.info(
-        f"Live mode — monitoring for WIN popup | results -> {results_file} | Ctrl-C to stop."
-    )
 
-    def on_trigger(frame):
+    def handle(frame):
         result = recognize_round(frame)
         if result is None:
             return
         print(format_round(result))
         if not is_new_round(result):
-            logger.info("Duplicate round (popup re-trigger) — not stored or sent.")
+            logger.info("Duplicate round — not stored or sent.")
             return
         store_round(result)   # local durable record (JSONL), independent of the API
         submit(result)        # queued; the sender thread POSTs it to the API
 
+    logger.info(
+        f"Live mode | trigger={trigger} | results -> {results_file} | Ctrl-C to stop."
+    )
     try:
-        run_capture_loop(on_trigger_callback=on_trigger)
+        if trigger == "cards":
+            _cards_triggered_loop(handle)
+        else:
+            from capture.screen_agent import run_capture_loop
+            run_capture_loop(on_trigger_callback=handle)
     finally:
         stop_sender()   # drain pending sends before exit
 
@@ -249,6 +310,9 @@ def main() -> None:
                         help="confidence threshold for --detect (default 0.25)")
     parser.add_argument("--send", action="store_true",
                         help="with --demo: also POST the sample rounds to your API")
+    parser.add_argument("--trigger", choices=["badge", "cards"], default="badge",
+                        help="--live trigger: 'badge' (gold WIN popup) or 'cards' "
+                             "(detect cards directly, no badge — runs the model continuously)")
     args = parser.parse_args()
 
     if args.demo:
@@ -262,7 +326,7 @@ def main() -> None:
     elif args.image:
         run_image(args.image)
     elif args.live:
-        run_live()
+        run_live(trigger=args.trigger)
 
 
 if __name__ == "__main__":
