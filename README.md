@@ -109,9 +109,12 @@ python tests/test_baccarat_engine.py
 
 ## Calibration
 
-ROIs live in [`capture/roi_config.py`](capture/roi_config.py) (the single source
-of truth) and can be overridden via `.env`. The defaults assume an 880×500
-window and **will not match your screen**. Workflow:
+By default the **whole monitor** is captured (`CAPTURE_FULLSCREEN=true`), so the
+ROIs are in full-screen pixel coordinates. (Set `CAPTURE_FULLSCREEN=false` to
+capture only the `GAME_MONITOR` rectangle; use `CAPTURE_MONITOR_INDEX` to pick a
+display.) ROIs live in [`capture/roi_config.py`](capture/roi_config.py) (the
+single source of truth) and can be overridden via `.env`. The defaults are
+placeholders and **will not match your screen**. Workflow:
 
 1. `python main.py --calibrate`
 2. Open `calibration_full.png` → read off `GAME_MONITOR_*` for your window.

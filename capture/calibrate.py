@@ -22,10 +22,11 @@ import numpy as np
 from capture.roi_config import (
     BANKER_CARDS_ROI,
     BANKER_SCORE_ROI,
-    GAME_MONITOR,
+    CAPTURE_FULLSCREEN,
     PLAYER_CARDS_ROI,
     PLAYER_SCORE_ROI,
     WIN_BADGE_ROI,
+    resolve_capture_region,
 )
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -43,7 +44,7 @@ _ROIS = {
 
 
 def draw_rois(image: np.ndarray) -> np.ndarray:
-    """Overlay every configured ROI box (coords are relative to GAME_MONITOR)."""
+    """Overlay every configured ROI box (coords are relative to the capture region)."""
     img = image.copy()
     for label, (roi, color) in _ROIS.items():
         x1, y1, x2, y2 = roi
@@ -55,23 +56,26 @@ def draw_rois(image: np.ndarray) -> np.ndarray:
 
 def capture_and_save() -> None:
     with mss.mss() as sct:
+        region_def = resolve_capture_region(sct)
         full = np.array(sct.grab(sct.monitors[1]))
         full_bgr = cv2.cvtColor(full, cv2.COLOR_BGRA2BGR)
 
-        region = np.array(sct.grab(GAME_MONITOR))
+        region = np.array(sct.grab(region_def))
         region_bgr = cv2.cvtColor(region, cv2.COLOR_BGRA2BGR)
 
     cv2.imwrite(FULL_PATH, full_bgr)
     cv2.imwrite(REGION_PATH, draw_rois(region_bgr))
 
     print(f"Primary display : {full_bgr.shape[1]} x {full_bgr.shape[0]}")
-    print(f"GAME_MONITOR    : {GAME_MONITOR}")
-    print(f"Saved full screen     -> {FULL_PATH}")
+    print(f"Capture mode    : {'FULL SCREEN' if CAPTURE_FULLSCREEN else 'GAME_MONITOR region'}")
+    print(f"Capture region  : {region_def}  ({region_bgr.shape[1]} x {region_bgr.shape[0]})")
+    print(f"Saved full screen      -> {FULL_PATH}")
     print(f"Saved annotated region -> {REGION_PATH}")
     if region_bgr.mean() < 2.0:
         print("\n[!] Region looks blank. On macOS, grant Screen Recording "
               "permission to your terminal and try again.")
-    print("\nNext: open the annotated image, adjust ROIs in capture/roi_config.py, re-run.")
+    print("\nNext: open the annotated image, set the ROIs (full-screen pixel coords) "
+          "in capture/roi_config.py, re-run.")
 
 
 if __name__ == "__main__":

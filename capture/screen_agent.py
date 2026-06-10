@@ -16,11 +16,11 @@ from loguru import logger
 from capture.roi_config import (
     CAPTURE_COOLDOWN_SECS,
     CAPTURE_FPS,
-    GAME_MONITOR,
     GOLD_HSV_LOWER,
     GOLD_HSV_UPPER,
     GOLD_PIXEL_THRESHOLD,
     WIN_BADGE_ROI,
+    resolve_capture_region,
 )
 
 _last_trigger_time = 0.0
@@ -34,9 +34,9 @@ def _grab(sct, region: dict) -> np.ndarray:
 
 
 def capture_frame() -> np.ndarray:
-    """Grab a single game-window frame (BGR). Opens its own mss instance."""
+    """Grab a single frame (BGR) of the capture region. Opens its own mss instance."""
     with mss.mss() as sct:
-        return _grab(sct, GAME_MONITOR)
+        return _grab(sct, resolve_capture_region(sct))
 
 
 def _looks_blank(frame: np.ndarray) -> bool:
@@ -78,13 +78,14 @@ def run_capture_loop(on_trigger_callback) -> None:
     Blocks until interrupted with Ctrl-C.
     """
     global _blank_warned
-    logger.info(f"Screen agent started | {CAPTURE_FPS} fps | region={GAME_MONITOR}")
     sleep_interval = 1.0 / max(CAPTURE_FPS, 1)
 
     with mss.mss() as sct:
+        region = resolve_capture_region(sct)
+        logger.info(f"Screen agent started | {CAPTURE_FPS} fps | region={region}")
         while True:
             try:
-                frame = _grab(sct, GAME_MONITOR)
+                frame = _grab(sct, region)
 
                 if _looks_blank(frame) and not _blank_warned:
                     logger.warning(
