@@ -150,10 +150,36 @@ domain gap, and a short fine-tune on your own frames (the `model/` scripts + you
 3080) is the fix. Alternative model:
 [mustafakemal0146/playing-cards-yolov8](https://huggingface.co/mustafakemal0146/playing-cards-yolov8).
 
+## Building a dataset for your own game
+
+A public dataset rarely matches a specific game's *rendered* cards, so you'll
+usually need data of your own cards. Two routes — both end up in `dataset/` and
+are picked up by `model/train.py`:
+
+**Route A — capture + label (most reliable).**
+```bash
+python scripts/extract_frames.py --on-badge --max 300 --crop   # grab finished-hand frames
+```
+Upload `dataset/raw_frames/` to [Roboflow](https://roboflow.com) (or label with
+LabelImg/CVAT), draw a box + class on each card, export **YOLOv8** into
+`dataset/`. Clean flat cards label quickly.
+
+**Route B — synthetic (no manual labeling).** Best when the cards are clean,
+consistent graphics. Put one image per card in `dataset/cards/` as
+`<rank>_<suit>.png` (crop them from your own frames with `--crop` above for an
+exact match, or render a standard SVG deck), then:
+```bash
+python model/synth_dataset.py --count 2000        # → dataset/synth/ + data.yaml
+DATA_YAML=./dataset/synth/data.yaml python model/train.py
+```
+It composites cards onto varied backgrounds at random positions/scales/rotations
+and writes the YOLO labels automatically — thousands of labeled images from ~52
+card pictures. Mixing in a few real labeled frames (Route A) closes any last gap.
+
 ## Training a model
 
 `--image` / `--live` need YOLOv8 weights. The `model/` scripts take you from a
-public dataset to a usable `best.pt`.
+dataset to a usable `best.pt`.
 
 ```bash
 pip install -r requirements.txt -r requirements-train.txt
@@ -242,8 +268,9 @@ game_logic/     pure baccarat rules engine + OCR/rules validator
 pipeline/       frame → structured round result; trigger-boundary dedup
 api_client/     JWT/bearer auth, retrying HTTP client, background sender thread
 storage/        append each round to logs/results.jsonl (JSON Lines)
-model/          dataset download, augmentation, YOLOv8 training, cards.yaml
+model/          dataset download, synthetic generator, augmentation, training
 monitoring/     loguru setup
+scripts/        smoke_test.sh, extract_frames.py (capture frames for a dataset)
 tools/          mock_api.py — stdlib test receiver
 tests/          baccarat engine unit tests
 main.py         --demo / --calibrate / --detect / --image / --live
