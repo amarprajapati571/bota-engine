@@ -6,6 +6,9 @@ Modes:
                                    sample cards. No model/screen/GPU needed —
                                    start here to confirm the install works.
   python main.py --calibrate       Save annotated screenshots to tune the ROIs.
+  python main.py --watch-badge     Live gold-ratio read-out for the WIN badge, so you
+                                   can set GOLD_PIXEL_THRESHOLD (trigger the popup and
+                                   watch it spike). No model needed.
   python main.py --detect PATH     Run the model on a WHOLE image (no ROIs, no game
                                    logic) — the quickest way to test that a model
                                    detects cards at all. Use --weights / --conf.
@@ -96,6 +99,32 @@ def run_calibrate() -> None:
     from capture.calibrate import capture_and_save
 
     capture_and_save()
+
+
+def run_watch_badge() -> None:
+    """
+    Live read-out of the WIN-badge gold ratio — for tuning GOLD_PIXEL_THRESHOLD.
+
+    Watch the idle value, trigger the WIN popup in-game, watch the ratio spike,
+    then set GOLD_PIXEL_THRESHOLD between the two. Ctrl-C to stop.
+    """
+    import time
+
+    from capture.roi_config import GOLD_PIXEL_THRESHOLD, WIN_BADGE_ROI
+    from capture.screen_agent import capture_frame, is_win_badge_visible
+
+    logger.info(f"Watching WIN badge | ROI={WIN_BADGE_ROI} | current threshold={GOLD_PIXEL_THRESHOLD}")
+    print("Trigger the WIN popup in-game and watch the ratio spike. Ctrl-C to stop.\n")
+    try:
+        while True:
+            _, ratio = is_win_badge_visible(capture_frame())
+            above = ratio >= GOLD_PIXEL_THRESHOLD
+            bar = "#" * min(int(ratio * 50), 50)
+            print(f"gold_ratio={ratio:6.3f} |{bar:<50}| {'TRIGGER' if above else '       '}",
+                  end="\r", flush=True)
+            time.sleep(0.2)
+    except KeyboardInterrupt:
+        print("\nStopped.")
 
 
 def run_image(path: str) -> None:
@@ -210,6 +239,7 @@ def main() -> None:
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--demo", action="store_true", help="run pipeline on sample cards (no model)")
     group.add_argument("--calibrate", action="store_true", help="save ROI calibration images")
+    group.add_argument("--watch-badge", action="store_true", help="live gold-ratio readout to tune the WIN-badge threshold")
     group.add_argument("--detect", metavar="PATH", help="run model on a whole image to test it")
     group.add_argument("--image", metavar="PATH", help="recognize a baccarat frame via the ROI pipeline")
     group.add_argument("--live", action="store_true", help="watch screen and recognize on WIN badge")
@@ -225,6 +255,8 @@ def main() -> None:
         run_demo(send=args.send)
     elif args.calibrate:
         run_calibrate()
+    elif args.watch_badge:
+        run_watch_badge()
     elif args.detect:
         run_detect(args.detect, args.weights, args.conf)
     elif args.image:

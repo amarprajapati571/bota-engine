@@ -118,6 +118,9 @@ window and **will not match your screen**. Workflow:
 3. Open `calibration_region_annotated.png` → nudge the card/badge/score ROIs.
 4. Repeat until the boxes sit exactly on the cards, the WIN badge, and the
    score circles.
+5. Tune the trigger: `python main.py --watch-badge`, trigger the WIN popup
+   in-game, and watch `gold_ratio` spike. Set `WIN_BADGE_GOLD_THRESHOLD` between
+   the idle value and the spike.
 
 ## Quick test without training
 
