@@ -74,6 +74,8 @@ def run_demo(send: bool = False) -> None:
 
     if send:
         from api_client.sender import start_sender, stop_sender, submit
+        from storage.results_store import ensure_results_file, store_round
+        ensure_results_file()
         start_sender()
 
     for player, banker in samples:
@@ -83,7 +85,8 @@ def run_demo(send: bool = False) -> None:
         result["timestamp"] = datetime.now(timezone.utc).isoformat()
         print(format_round(result))
         if send:
-            submit(result)
+            store_round(result)   # local JSONL
+            submit(result)        # API push
 
     if send:
         stop_sender()

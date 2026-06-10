@@ -72,6 +72,35 @@ python main.py --image path/to/frame.png
 python main.py --live
 ```
 
+## Verifying it works
+
+Work up the ladder — each rung needs more than the last, so a failure pinpoints
+the layer that broke.
+
+**Offline (no model, no screen) — one command:**
+
+```bash
+bash scripts/smoke_test.sh
+```
+
+Runs the engine unit tests, the demo pipeline, and a full storage + API-push
+round-trip against a throwaway mock backend (writes to a temp file, so it never
+touches your real `results.jsonl`). All green = the entire non-vision pipeline works.
+
+Or step through it manually:
+
+| Check | Command | Proves |
+|---|---|---|
+| Rules engine | `python tests/test_baccarat_engine.py` | scoring + draw logic (17 tests) |
+| Demo pipeline | `python main.py --demo` | recognize→compute→format wiring |
+| Storage + API | `python tools/mock_api.py` &nbsp;+&nbsp; `python main.py --demo --send` | `results.jsonl` write, JWT/POST, dedup |
+| Screen capture | `python main.py --calibrate` | mss grabs your screen (saves PNG) |
+| Model loads/detects | `python main.py --detect card.jpeg` | weights load + cards detected |
+| Full live loop | `python main.py --live` | monitor→recognize→store→send |
+
+The last two rows need a model at `models/weights/best.pt` (and `--live` needs ROIs
+calibrated to your game). Everything above runs today with zero model.
+
 Run the logic tests with:
 
 ```bash
