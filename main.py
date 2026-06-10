@@ -9,9 +9,10 @@ Modes:
   python main.py --watch-badge     Live gold-ratio read-out for the WIN badge, so you
                                    can set GOLD_PIXEL_THRESHOLD (trigger the popup and
                                    watch it spike). No model needed.
-  python main.py --detect PATH     Run the model on a WHOLE image (no ROIs, no game
-                                   logic) — the quickest way to test that a model
-                                   detects cards at all. Use --weights / --conf.
+  python main.py --detect-screen   Capture the screen and run the model on it in one
+                                   shot (saves screen_detected.jpg). "capture + detect".
+  python main.py --detect PATH     Run the model on a saved image (no ROIs, no game
+                                   logic) — quickest way to test a model. --weights/--conf.
   python main.py --image PATH      Run the full CV pipeline on a saved frame.
   python main.py --live            Monitor the screen, recognize each hand, store + send.
                                    --trigger badge : fire on the gold WIN popup (default)
@@ -154,38 +155,25 @@ def run_image(path: str) -> None:
     print(json.dumps(result, indent=2))
 
 
-def run_detect(path: str, weights: str | None, conf: float) -> None:
-    """
-    Run the model on the WHOLE image — no ROI cropping, no baccarat logic.
-    Lists every detection (with its parsed rank/value) and saves an annotated
-    copy. This decouples "does the model detect cards" from "are my ROIs tuned",
-    so you can verify a downloaded model before any calibration.
-    """
-    import cv2
-
-    from game_logic.baccarat_engine import card_value, parse_rank
-
-    # Cheap checks first — don't pay the torch import just to report a typo.
-    if not os.path.exists(path):
-        logger.error(f"Image not found: {path}")
-        sys.exit(1)
-
+def _resolve_weights(weights: str | None) -> str:
     weights = weights or os.getenv("MODEL_WEIGHTS_PATH", "./models/weights/best.pt")
     if not os.path.exists(weights):
         logger.error(
-            f"Model not found: {weights} — download one (see README → "
-            "'Quick test without training'), then pass --weights PATH or set MODEL_WEIGHTS_PATH."
+            f"Model not found: {weights} — download one (README -> 'Quick test "
+            "without training') or train one (README -> 'Training a model'), then "
+            "pass --weights PATH or set MODEL_WEIGHTS_PATH."
         )
         sys.exit(1)
+    return weights
 
-    image = cv2.imread(path)
-    if image is None:
-        logger.error(f"Could not read image: {path}")
-        sys.exit(1)
 
-    from ultralytics import YOLO
+def _detect_and_report(image, weights: str, conf: float, out_path: str) -> None:
+    """Load weights, run YOLO on the WHOLE image, print detections, save annotated copy."""
+    import cv2
 
+    from game_logic.baccarat_engine import card_value, parse_rank
     from recognition.device import resolve_device
+    from ultralytics import YOLO
 
     model = YOLO(weights)
     logger.info(f"Loaded {weights} | {len(model.names)} classes | device={resolve_device()}")
@@ -200,11 +188,36 @@ def run_detect(path: str, weights: str | None, conf: float) -> None:
     for name, c in dets:
         print(f"  {name:<16} conf={c:.2f}   rank={parse_rank(name):<3} value={card_value(name)}")
     if not dets:
-        print("  (none — try a clearer image, a lower --conf, or a different model)")
+        print("  (none — try a lower --conf, or a model trained on these cards)")
 
-    out = os.path.splitext(path)[0] + "_detected.jpg"
-    cv2.imwrite(out, r.plot())
-    print(f"\nAnnotated image saved: {out}")
+    cv2.imwrite(out_path, r.plot())
+    print(f"\nAnnotated image saved: {out_path}")
+
+
+def run_detect(path: str, weights: str | None, conf: float) -> None:
+    """Run the model on a SAVED image (whole image, no ROIs)."""
+    import cv2
+
+    if not os.path.exists(path):
+        logger.error(f"Image not found: {path}")
+        sys.exit(1)
+    weights = _resolve_weights(weights)
+    image = cv2.imread(path)
+    if image is None:
+        logger.error(f"Could not read image: {path}")
+        sys.exit(1)
+    _detect_and_report(image, weights, conf, os.path.splitext(path)[0] + "_detected.jpg")
+
+
+def run_detect_screen(weights: str | None, conf: float) -> None:
+    """Capture the screen and run the model on it in one shot. Saves screen_detected.jpg."""
+    weights = _resolve_weights(weights)
+    from capture.screen_agent import capture_frame
+
+    logger.info("Capturing screen...")
+    image = capture_frame()
+    out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "screen_detected.jpg")
+    _detect_and_report(image, weights, conf, out)
 
 
 def _cards_triggered_loop(handle) -> None:
@@ -301,7 +314,8 @@ def main() -> None:
     group.add_argument("--demo", action="store_true", help="run pipeline on sample cards (no model)")
     group.add_argument("--calibrate", action="store_true", help="save ROI calibration images")
     group.add_argument("--watch-badge", action="store_true", help="live gold-ratio readout to tune the WIN-badge threshold")
-    group.add_argument("--detect", metavar="PATH", help="run model on a whole image to test it")
+    group.add_argument("--detect-screen", action="store_true", help="capture the screen and run the model on it (one shot)")
+    group.add_argument("--detect", metavar="PATH", help="run model on a saved image to test it")
     group.add_argument("--image", metavar="PATH", help="recognize a baccarat frame via the ROI pipeline")
     group.add_argument("--live", action="store_true", help="watch screen and recognize on WIN badge")
     parser.add_argument("--weights", metavar="PATH",
@@ -321,6 +335,8 @@ def main() -> None:
         run_calibrate()
     elif args.watch_badge:
         run_watch_badge()
+    elif args.detect_screen:
+        run_detect_screen(args.weights, args.conf)
     elif args.detect:
         run_detect(args.detect, args.weights, args.conf)
     elif args.image:

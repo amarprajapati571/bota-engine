@@ -1,0 +1,82 @@
+[
+  {
+    "round_count": 1,
+    "round_id": "33",
+    "source_round_id": "34",
+    "timer_val": "betting_started",
+    "timestamp": "20260610_121332",
+    "image_path": "screenshots/round0001_tbetting_started_20260610_121332.png"
+  },
+  {
+    "round_count": 2,
+    "round_id": "33",
+    "source_round_id": "34",
+    "timer_val": "betting_started",
+    "timestamp": "20260610_121333",
+    "image_path": "screenshots/round0002_tbetting_started_20260610_121333.png"
+  },
+  {
+    "round_count": 4,
+    "round_id": "34",
+    "source_round_id": "35",
+    "timer_val": "betting_started",
+    "timestamp": "20260610_121435",
+    "image_path": "screenshots/round0004_tbetting_started_20260610_121435.png"
+  },
+  {
+    "round_count": 6,
+    "round_id": "35",
+    "source_round_id": "36",
+    "timer_val": "betting_started",
+    "timestamp": "20260610_121536",
+    "image_path": "screenshots/round0006_tbetting_started_20260610_121536.png"
+  },
+  {
+    "round_count": 8,
+    "round_id": "36",
+    "source_round_id": "37",
+    "timer_val": "betting_started",
+    "timestamp": "20260610_121638",
+    "image_path": "screenshots/round0008_tbetting_started_20260610_121638.png"
+  },
+  {
+    "round_count": 10,
+    "round_id": "37",
+    "source_round_id": "38",
+    "timer_val": "betting_started",
+    "timestamp": "20260610_121738",
+    "image_path": "screenshots/round0010_tbetting_started_20260610_121738.png"
+  },
+  {
+    "round_count": 12,
+    "round_id": "38",
+    "source_round_id": "39",
+    "timer_val": "betting_started",
+    "timestamp": "20260610_121831",
+    "image_path": "screenshots/round0012_tbetting_started_20260610_121831.png"
+  },
+  {
+    "round_count": 14,
+    "round_id": "39",
+    "source_round_id": "40",
+    "timer_val": "betting_started",
+    "timestamp": "20260610_121929",
+    "image_path": "screenshots/round0014_tbetting_started_20260610_121929.png"
+  },
+  {
+    "round_count": 16,
+    "round_id": "40",
+    "source_round_id": "41",
+    "timer_val": "betting_started",
+    "timestamp": "20260610_122025",
+    "image_path": "screenshots/round0016_tbetting_started_20260610_122025.png"
+  },
+  {
+    "round_count": 18,
+    "round_id": "41",
+    "source_round_id": "42",
+    "timer_val": "betting_started",
+    "timestamp": "20260610_122132",
+    "image_path": "screenshots/round0018_tbetting_started_20260610_122132.png"
+  }
+]
