@@ -99,7 +99,7 @@ def run_image(path: str) -> None:
     import cv2
 
     from pipeline.recognize import recognize_round
-    from storage.results_store import store_round
+    from storage.results_store import ensure_results_file, store_round
 
     if not os.path.exists(path):
         logger.error(f"Image not found: {path}")
@@ -109,6 +109,7 @@ def run_image(path: str) -> None:
         logger.error(f"Could not read image: {path}")
         sys.exit(1)
 
+    ensure_results_file()   # create it now if not found
     result = recognize_round(frame)
     if result is None:
         logger.warning("No round recognized in image.")
@@ -176,11 +177,12 @@ def run_live() -> None:
     from capture.screen_agent import run_capture_loop
     from pipeline.dedup import is_new_round
     from pipeline.recognize import recognize_round
-    from storage.results_store import results_path, store_round
+    from storage.results_store import ensure_results_file, store_round
 
+    results_file = ensure_results_file()   # create it now if not found
     start_sender()
     logger.info(
-        f"Live mode — monitoring for WIN popup | results -> {results_path()} | Ctrl-C to stop."
+        f"Live mode — monitoring for WIN popup | results -> {results_file} | Ctrl-C to stop."
     )
 
     def on_trigger(frame):

@@ -28,15 +28,39 @@ def results_path() -> str:
     return os.getenv("RESULTS_FILE", "./logs/results.jsonl")
 
 
+def ensure_results_file() -> str:
+    """
+    Make sure the results file exists, creating it (and its parent directories) if
+    not found. Returns the path.
+
+    Called at startup so the file is present before the first round — handy for
+    `tail -f`. store_round() also creates on demand, so this is belt-and-braces.
+    """
+    path = results_path()
+    if not _enabled():
+        return path
+    try:
+        os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+        if not os.path.exists(path):
+            with _lock, open(path, "a", encoding="utf-8"):
+                pass  # touch — create empty file
+            logger.info(f"Created results file: {path}")
+        else:
+            logger.debug(f"Results file ready: {path}")
+    except Exception as exc:
+        logger.error(f"Could not create results file {path}: {exc}")
+    return path
+
+
 def store_round(result: dict) -> bool:
-    """Append one round to the results file. Returns True if written."""
+    """Append one round to the results file (creating it if missing). True if written."""
     if not _enabled():
         return False
 
     path = results_path()
     try:
-        directory = os.path.dirname(os.path.abspath(path))
-        os.makedirs(directory, exist_ok=True)
+        # makedirs + append mode ("a") together create the file if it isn't there.
+        os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
         line = json.dumps(result, ensure_ascii=False)
         with _lock, open(path, "a", encoding="utf-8") as fh:
             fh.write(line + "\n")
