@@ -276,6 +276,15 @@ def run_live(trigger: str = "badge") -> None:
         )
         sys.exit(1)
 
+    import cv2
+
+    from api_client.cse_sender import (
+        cse_enabled,
+        cse_frame_dir,
+        start_cse_sender,
+        stop_cse_sender,
+        submit_cse_review,
+    )
     from api_client.sender import start_sender, stop_sender, submit
     from pipeline.dedup import is_new_round
     from pipeline.recognize import recognize_round
@@ -283,6 +292,15 @@ def run_live(trigger: str = "badge") -> None:
 
     results_file = ensure_results_file()   # create it now if not found
     start_sender()
+    start_cse_sender()
+
+    def save_cse_frame(frame, round_id: str) -> str:
+        frame_dir = cse_frame_dir()
+        frame_dir.mkdir(parents=True, exist_ok=True)
+        path = frame_dir / f"{round_id}.png"
+        if not cv2.imwrite(str(path), frame):
+            raise RuntimeError(f"Could not save CSE frame: {path}")
+        return str(path)
 
     def handle(frame):
         result = recognize_round(frame)
@@ -292,6 +310,14 @@ def run_live(trigger: str = "badge") -> None:
         if not is_new_round(result):
             logger.info("Duplicate round — not stored or sent.")
             return
+        if cse_enabled():
+            try:
+                image_path = save_cse_frame(frame, result["round_id"])
+                result["source_image_path"] = image_path
+                result["source_image_name"] = os.path.basename(image_path)
+                submit_cse_review(image_path, result)
+            except Exception as exc:
+                logger.error(f"CSE frame/send queue failed | round={result.get('round_id')}: {exc}")
         store_round(result)   # local durable record (JSONL), independent of the API
         submit(result)        # queued; the sender thread POSTs it to the API
 
@@ -306,6 +332,7 @@ def run_live(trigger: str = "badge") -> None:
             run_capture_loop(on_trigger_callback=handle)
     finally:
         stop_sender()   # drain pending sends before exit
+        stop_cse_sender()
 
 
 def main() -> None:

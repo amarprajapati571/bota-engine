@@ -8,9 +8,9 @@ Two modes:
   # a frame every N seconds (good for grabbing lots of variety):
   python scripts/extract_frames.py --interval 2 --max 300
 
-Frames are saved to dataset/raw_frames/. With --crop it also saves the
-PLAYER/BANKER card-zone crops to dataset/crops/ (handy for inspecting detection
-or cutting out card templates for the synthetic generator).
+Frames are saved to dataset/raw_frames/. With --crop it also saves the marked
+training crops to dataset/crops/: player_cards, banker_cards, winner_badge,
+player_score, and banker_score.
 
 Next: upload dataset/raw_frames/ to Roboflow (or label with LabelImg/CVAT),
 export YOLOv8, and train with model/train.py.
@@ -29,7 +29,7 @@ from dotenv import load_dotenv  # noqa: E402
 
 load_dotenv()
 
-from capture.roi_config import BANKER_CARDS_ROI, CAPTURE_FPS, PLAYER_CARDS_ROI  # noqa: E402
+from capture.roi_config import CAPTURE_FPS, MARKED_CROP_ROIS  # noqa: E402
 from capture.screen_agent import capture_frame, is_win_badge_visible, should_trigger  # noqa: E402
 
 RAW_DIR = os.path.join(PROJECT_ROOT, "dataset", "raw_frames")
@@ -41,7 +41,7 @@ def _save(frame, crop: bool) -> str:
     path = os.path.join(RAW_DIR, f"frame-{ts}.png")
     cv2.imwrite(path, frame)
     if crop:
-        for zone, roi in (("player", PLAYER_CARDS_ROI), ("banker", BANKER_CARDS_ROI)):
+        for zone, roi in MARKED_CROP_ROIS.items():
             x1, y1, x2, y2 = roi
             sub = frame[y1:y2, x1:x2]
             if sub.size:
@@ -55,13 +55,13 @@ def main() -> None:
     mode.add_argument("--on-badge", action="store_true", help="save one frame per WIN badge")
     mode.add_argument("--interval", type=float, metavar="SECS", help="save a frame every N seconds")
     ap.add_argument("--max", type=int, default=300, help="stop after this many frames")
-    ap.add_argument("--crop", action="store_true", help="also save player/banker card-zone crops")
+    ap.add_argument("--crop", action="store_true", help="also save marked card, winner, and score crops")
     args = ap.parse_args()
 
     os.makedirs(RAW_DIR, exist_ok=True)
     if args.crop:
-        os.makedirs(os.path.join(CROP_DIR, "player"), exist_ok=True)
-        os.makedirs(os.path.join(CROP_DIR, "banker"), exist_ok=True)
+        for zone in MARKED_CROP_ROIS:
+            os.makedirs(os.path.join(CROP_DIR, zone), exist_ok=True)
 
     print(f"Saving to {RAW_DIR} | mode={'on-badge' if args.on_badge else f'every {args.interval}s'} "
           f"| max={args.max} | Ctrl-C to stop early")

@@ -23,6 +23,7 @@ from capture.roi_config import (
     BANKER_CARDS_ROI,
     BANKER_SCORE_ROI,
     CAPTURE_FULLSCREEN,
+    MARKED_CROP_ROIS,
     PLAYER_CARDS_ROI,
     PLAYER_SCORE_ROI,
     WIN_BADGE_ROI,
@@ -40,6 +41,14 @@ _ROIS = {
     "BANKER_CARDS": (BANKER_CARDS_ROI, (200, 0, 0)),  # blue
     "PLAYER_SCORE": (PLAYER_SCORE_ROI, (0, 200, 255)),  # orange
     "BANKER_SCORE": (BANKER_SCORE_ROI, (200, 0, 200)),  # purple
+}
+
+assert set(MARKED_CROP_ROIS) == {
+    "player_cards",
+    "banker_cards",
+    "winner_badge",
+    "player_score",
+    "banker_score",
 }
 
 

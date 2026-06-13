@@ -52,16 +52,26 @@ def main() -> None:
     print(f"Training on {data} | device={device}")
 
     model = YOLO(os.getenv("BASE_MODEL", "yolov8n.pt"))
-    model.train(
-        data=data,
-        epochs=int(os.getenv("TRAIN_EPOCHS", 100)),
-        imgsz=int(os.getenv("TRAIN_IMGSZ", 640)),
-        batch=int(os.getenv("TRAIN_BATCH", 16)),
-        device=device,
-        project=os.path.join(PROJECT_ROOT, "runs"),
-        name="cards",
-        exist_ok=True,
-    )
+    train_args = {
+        "data": data,
+        "epochs": int(os.getenv("TRAIN_EPOCHS", 100)),
+        "imgsz": int(os.getenv("TRAIN_IMGSZ", 640)),
+        "batch": int(os.getenv("TRAIN_BATCH", 16)),
+        "device": device,
+        "project": os.path.join(PROJECT_ROOT, "runs"),
+        "name": os.getenv("TRAIN_RUN_NAME", "cards"),
+        "exist_ok": True,
+        "workers": int(os.getenv("TRAIN_WORKERS", 8)),
+        "cache": os.getenv("TRAIN_CACHE", "false").strip().lower() in ("1", "true", "yes", "on"),
+        "patience": int(os.getenv("TRAIN_PATIENCE", 20)),
+        "plots": os.getenv("TRAIN_PLOTS", "false").strip().lower() in ("1", "true", "yes", "on"),
+        "verbose": os.getenv("TRAIN_VERBOSE", "true").strip().lower() in ("1", "true", "yes", "on"),
+    }
+    freeze = os.getenv("TRAIN_FREEZE")
+    if freeze:
+        train_args["freeze"] = int(freeze)
+
+    model.train(**train_args)
 
     best = getattr(model.trainer, "best", None)
     if not best or not os.path.exists(best):

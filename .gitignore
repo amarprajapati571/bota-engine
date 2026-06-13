@@ -8,10 +8,8 @@ env/
 # Env / secrets
 .env
 
-# Models & weights (large binaries)
-*.pt
+# Exported model formats not used by the repo
 *.onnx
-models/weights/
 
 # Logs / runtime data
 logs/
@@ -21,11 +19,9 @@ tools/received_rounds.jsonl
 
 # Calibration / capture artifacts
 calibration_*.png
-dataset/
 
 # Training output
 runs/
-yolov8*.pt
 
 # OS / editor
 .DS_Store
