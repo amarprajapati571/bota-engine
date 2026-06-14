@@ -60,7 +60,33 @@ def _append_outbox(image_path: str, payload: dict) -> None:
 def submit_cse_review(image_path: str, ai_response: dict) -> None:
     if not cse_enabled():
         return
-    _q.put((image_path, ai_response))
+    _q.put((image_path, _review_payload(ai_response)))
+
+
+def _review_payload(ai_response: dict) -> dict:
+    """Return the CSE-facing payload with cards in image visual order.
+
+    The recognition core keeps deal order for baccarat scoring, but CSE users
+    review cards by looking at the screenshot from left to right. Sending the
+    visual order as the main card fields keeps manual feedback aligned with the
+    image while still preserving deal-order fields for debugging/retraining.
+    """
+    payload = dict(ai_response)
+    player_visual = ai_response.get("player_cards_visual_order")
+    banker_visual = ai_response.get("banker_cards_visual_order")
+
+    if player_visual:
+        payload["player_cards"] = list(player_visual)
+        payload["playerCards"] = list(player_visual)
+    if banker_visual:
+        payload["banker_cards"] = list(banker_visual)
+        payload["bankerCards"] = list(banker_visual)
+
+    payload["card_order_for_review"] = "visual_left_to_right"
+    payload["cardOrderForReview"] = "visual_left_to_right"
+    payload.setdefault("player_cards_deal_order", ai_response.get("player_cards_deal_order"))
+    payload.setdefault("banker_cards_deal_order", ai_response.get("banker_cards_deal_order"))
+    return payload
 
 
 def send_cse_review(image_path: str, ai_response: dict) -> bool:

@@ -190,6 +190,25 @@ def _training_cards(record: dict, zone: str) -> list[str]:
     return []
 
 
+def _card_order_for_review(record: dict) -> str:
+    for container in (
+        record.get("trainingLabel") or {},
+        record.get("aiResponse") or {},
+        record.get("aiPrediction") or {},
+    ):
+        value = (
+            container.get("cardOrderForReview")
+            or container.get("card_order_for_review")
+            or container.get("cardOrder")
+            or container.get("card_order")
+        )
+        if value:
+            return str(value).strip().lower()
+    # New CSE UI payloads are visual. Older records may not include the marker,
+    # but visual order is the safest default for manual feedback.
+    return "visual_left_to_right"
+
+
 def _deal_to_visual(cards: list[str], zone: str) -> list[str]:
     if zone == "player" and len(cards) == 3:
         return [cards[2], cards[0], cards[1]]
@@ -265,10 +284,13 @@ def _process_record(record: dict, image_path: Path, out_root: Path) -> int:
     label_dir.mkdir(parents=True, exist_ok=True)
 
     for zone, base_roi in (("player", PLAYER_CARDS_ROI), ("banker", BANKER_CARDS_ROI)):
-        cards_deal = _training_cards(record, zone)
-        if not (2 <= len(cards_deal) <= 3):
+        cards = _training_cards(record, zone)
+        if not (2 <= len(cards) <= 3):
             continue
-        cards_visual = _deal_to_visual(cards_deal, zone)
+        if _card_order_for_review(record).startswith("visual"):
+            cards_visual = cards
+        else:
+            cards_visual = _deal_to_visual(cards, zone)
 
         roi = scale_roi_for_frame(base_roi, width, height)
         x1, y1, x2, y2 = roi
