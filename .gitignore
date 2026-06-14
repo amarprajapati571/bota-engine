@@ -22,6 +22,9 @@ calibration_*.png
 
 # Training output
 runs/
+yolov8n-cls.pt
+node_modules/
+dataset/cse_feedback_card_roi_test/
 
 # OS / editor
 .DS_Store

@@ -10,7 +10,7 @@ import numpy as np
 from loguru import logger
 from ultralytics import YOLO
 
-from capture.roi_config import BANKER_SCORE_ROI, PLAYER_SCORE_ROI
+from capture.roi_config import BANKER_SCORE_ROI, PLAYER_SCORE_ROI, scale_roi_for_frame
 from recognition.device import resolve_device
 
 _score_model: YOLO | None = None
@@ -40,6 +40,8 @@ def get_score_model() -> YOLO:
 def read_score_digit(frame: np.ndarray, zone: str) -> tuple[int | None, float]:
     """Return (digit, confidence), or (None, 0.0) when unavailable."""
     roi = PLAYER_SCORE_ROI if zone == "player" else BANKER_SCORE_ROI
+    height, width = frame.shape[:2]
+    roi = scale_roi_for_frame(roi, width, height)
     x1, y1, x2, y2 = roi
     crop = frame[y1:y2, x1:x2]
     if crop.size == 0:

@@ -12,7 +12,7 @@ import easyocr
 import numpy as np
 from loguru import logger
 
-from capture.roi_config import BANKER_SCORE_ROI, PLAYER_SCORE_ROI
+from capture.roi_config import BANKER_SCORE_ROI, PLAYER_SCORE_ROI, scale_roi_for_frame
 from recognition.device import has_cuda
 
 _reader: easyocr.Reader | None = None
@@ -38,6 +38,8 @@ def _preprocess_score_crop(crop: np.ndarray) -> np.ndarray:
 def read_score(frame: np.ndarray, zone: str) -> int | None:
     """Read the 0–9 score for a zone, or None if it can't be read confidently."""
     roi = PLAYER_SCORE_ROI if zone == "player" else BANKER_SCORE_ROI
+    height, width = frame.shape[:2]
+    roi = scale_roi_for_frame(roi, width, height)
     x1, y1, x2, y2 = roi
     crop = frame[y1:y2, x1:x2]
     if crop.size == 0:

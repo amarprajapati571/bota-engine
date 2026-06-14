@@ -45,12 +45,17 @@ def format_round(result: dict) -> str:
         f"  id        : {result.get('round_id', '(demo)')}",
         f"  player    : {result['player_cards']}  = {result['player_value']}",
         f"  banker    : {result['banker_cards']}  = {result['banker_value']}",
-        f"  outcome   : {result['outcome']}"
+        f"  outcome   : {result.get('final_outcome', result['outcome'])}"
         + ("  (natural)" if result.get("is_natural") else ""),
     ]
     if "confidence_level" in result:
         lines += [
             f"  ocr P/B   : {result.get('ocr_player_score')} / {result.get('ocr_banker_score')}",
+            f"  shown P/B : {result.get('display_player_score')} / {result.get('display_banker_score')} "
+            f"({result.get('display_score_source_player')} / {result.get('display_score_source_banker')})",
+            f"  badge     : {result.get('winner_badge_outcome')} "
+            f"(cards_match={result.get('winner_badge_match')}, score_match={result.get('display_badge_agree')})",
+            f"  cards out : {result.get('card_outcome', result.get('outcome'))}",
             f"  rules ok  : {result.get('rules_consistent')}",
             f"  validated : {result.get('validation_passed')}  ({result['confidence_level']})",
         ]

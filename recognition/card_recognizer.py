@@ -124,6 +124,168 @@ def _pick_best_by_slot_votes(detections: list[dict], roi_width: int, slot_count:
     return [winners[slot] for slot in sorted(winners)]
 
 
+def _best_label_vote(detections: list[dict]) -> dict | None:
+    if not detections:
+        return None
+
+    by_label: dict[str, list[dict]] = {}
+    for det in detections:
+        by_label.setdefault(det["card"], []).append(det)
+
+    best: dict | None = None
+    best_score = -1.0
+    for group in by_label.values():
+        strongest = max(group, key=lambda d: d["confidence"])
+        # Multiple corner hits on a sideways card are stronger than one
+        # isolated high-confidence false label in the same physical area.
+        score = sum(d["confidence"] for d in group) + (len(group) - 1) * 0.12
+        if score > best_score:
+            best = {**strongest, "label_vote_score": round(score, 4), "label_vote_count": len(group)}
+            best_score = score
+    return best
+
+
+def _pick_upright_by_zones(
+    detections: list[dict],
+    zone_width: float,
+    max_cards: int = 2,
+    zone_start: float = 0.0,
+) -> list[dict]:
+    if not detections:
+        return []
+
+    slot_width = zone_width / max_cards
+    by_slot: dict[int, list[dict]] = {}
+    for det in detections:
+        slot = int((_center_x(det) - zone_start) / slot_width)
+        slot = max(0, min(max_cards - 1, slot))
+        by_slot.setdefault(slot, []).append(det)
+
+    picked: list[dict] = []
+    for slot in range(max_cards):
+        voted = _best_label_vote(by_slot.get(slot, []))
+        if voted is not None:
+            picked.append(voted)
+
+    if len(picked) >= max_cards:
+        return picked[:max_cards]
+
+    for det in sorted(detections, key=lambda d: d["confidence"], reverse=True):
+        if len(picked) >= max_cards:
+            break
+        if all(_iou(det["bbox"], p["bbox"]) < 0.25 and abs(_center_x(det) - _center_x(p)) >= 25 for p in picked):
+            picked.append(det)
+    return _sort_visual_order(picked[:max_cards])
+
+
+def _pick_by_fixed_table_zones(
+    detections: list[dict],
+    roi_width: int,
+    zone: str,
+    max_cards: int = 3,
+) -> list[dict]:
+    if not detections:
+        return []
+
+    if zone == "player":
+        third_end = roi_width * float(os.getenv("CARD_PLAYER_THIRD_ZONE_END", "0.38"))
+        upright = [det for det in detections if _center_x(det) > third_end]
+        third_candidates = [det for det in detections if _center_x(det) <= third_end]
+        picked = _pick_upright_by_zones(upright, roi_width - third_end, 2, third_end)
+        third = _best_label_vote(third_candidates)
+        if third is not None:
+            picked.append(third)
+        return _sort_visual_order(picked[:max_cards])
+
+    if zone == "banker":
+        third_start = roi_width * float(os.getenv("CARD_BANKER_THIRD_ZONE_START", "0.55"))
+        upright = [det for det in detections if _center_x(det) < third_start]
+        third_candidates = [det for det in detections if _center_x(det) >= third_start]
+        picked = _pick_upright_by_zones(upright, third_start, 2)
+        third = _best_label_vote(third_candidates)
+        if third is not None:
+            picked.append(third)
+        return _sort_visual_order(picked[:max_cards])
+
+    return []
+
+
+def _pick_top_physical_cards(detections: list[dict], max_cards: int = 3) -> list[dict]:
+    """Keep the strongest physical-card detections after local duplicate cleanup."""
+    return _sort_visual_order(sorted(detections, key=lambda d: d["confidence"], reverse=True)[:max_cards])
+
+
+def _pick_by_baccarat_layout(
+    detections: list[dict],
+    roi_width: int,
+    roi_height: int,
+    zone: str,
+    max_cards: int = 3,
+) -> list[dict]:
+    """Pick card-index detections using the fixed baccarat table layout.
+
+    The detector mostly sees corner indices, not full cards. In this UI the
+    useful detections for upright cards are the top indices; bottom indices can
+    be lower-confidence duplicates or even wrong suits/ranks. The third card is
+    sideways: player side usually appears on the left, banker side on the right.
+    """
+    if not detections:
+        return []
+
+    if _enabled("CARD_FIXED_ZONE_PICK", "true"):
+        fixed_zone = _pick_by_fixed_table_zones(detections, roi_width, zone, max_cards)
+        if len(fixed_zone) >= 2:
+            return fixed_zone
+
+    top_edge_ratio = float(os.getenv("CARD_TOP_EDGE_RATIO", "0.45"))
+    min_sideways_conf = float(os.getenv("CARD_SIDEWAYS_MIN_CONF", "0.18"))
+    top_limit = roi_height * top_edge_ratio
+
+    upright_top = [
+        det
+        for det in detections
+        if not _is_sideways(det) and det["bbox"][1] <= top_limit
+    ]
+
+    chosen: list[dict] = sorted(upright_top, key=lambda d: d["bbox"][0])
+
+    min_upright_cards = int(os.getenv("CARD_MIN_UPRIGHT_CARDS", "2"))
+    upright_center_gap = float(os.getenv("CARD_UPRIGHT_MIN_CENTER_GAP", "25"))
+    if len(chosen) < min_upright_cards:
+        chosen_keys = {(det["card"], round(_center_x(det), 1)) for det in chosen}
+        upright_fallback = sorted(
+            (
+                det
+                for det in detections
+                if not _is_sideways(det)
+                and (det["card"], round(_center_x(det), 1)) not in chosen_keys
+            ),
+            key=lambda d: d["confidence"],
+            reverse=True,
+        )
+        for det in upright_fallback:
+            if len(chosen) >= min_upright_cards:
+                break
+            if all(abs(_center_x(det) - _center_x(existing)) >= upright_center_gap for existing in chosen):
+                chosen.append(det)
+
+    sideways = [det for det in detections if _is_sideways(det) and det["confidence"] >= min_sideways_conf]
+    if sideways and len(chosen) < max_cards:
+        if zone == "player":
+            third = min(sideways, key=lambda d: d["bbox"][0])
+        elif zone == "banker":
+            third = max(sideways, key=lambda d: d["bbox"][0])
+        else:
+            third = max(sideways, key=lambda d: d["confidence"])
+        if all(_iou(third["bbox"], det["bbox"]) < 0.30 for det in chosen):
+            chosen.append(third)
+
+    if len(chosen) >= 2:
+        return _sort_visual_order(chosen[:max_cards])
+
+    return _pick_top_physical_cards(detections, max_cards)
+
+
 def _remove_duplicate_card_labels(detections: list[dict]) -> list[dict]:
     best_by_card: dict[str, dict] = {}
     for det in detections:
@@ -133,8 +295,24 @@ def _remove_duplicate_card_labels(detections: list[dict]) -> list[dict]:
     return list(best_by_card.values())
 
 
+def _merge_nearby_same_label_detections(detections: list[dict]) -> list[dict]:
+    """Merge duplicate corner hits from the same physical card.
+
+    Multi-deck baccarat can show the same card label more than once, so this is
+    intentionally local: only same-label detections with nearby x centers are
+    merged. Distant same-label cards remain valid separate physical cards.
+    """
+    threshold = float(os.getenv("SAME_LABEL_DUP_CENTER_X_PX", "55"))
+    detections = sorted(detections, key=lambda d: d["confidence"], reverse=True)
+    kept: list[dict] = []
+    for det in detections:
+        if all(det["card"] != k["card"] or abs(_center_x(det) - _center_x(k)) >= threshold for k in kept):
+            kept.append(det)
+    return _sort_visual_order(kept)
+
+
 def _fix_known_sideways_confusions(detections: list[dict]) -> list[dict]:
-    if not _enabled("FIX_SIDEWAYS_5D_AS_9D", "true"):
+    if not _enabled("FIX_SIDEWAYS_5D_AS_9D", "false"):
         return detections
 
     fixed = []
@@ -150,6 +328,7 @@ def _fix_known_sideways_confusions(detections: list[dict]) -> list[dict]:
 def _dedup_cards(
     detections: list[dict],
     roi_width: int,
+    roi_height: int,
     zone: str = "unknown",
     iou_threshold: float = 0.45,
 ) -> list[dict]:
@@ -161,16 +340,25 @@ def _dedup_cards(
             kept.append(det)
     _debug_stage(zone, "after_iou", kept)
 
-    if _enabled("CARD_SLOT_VOTE_DEDUP", "true"):
+    kept = _merge_nearby_same_label_detections(kept)
+    _debug_stage(zone, "after_same_label_nearby", kept)
+
+    if _enabled("CARD_SLOT_VOTE_DEDUP", "false"):
         kept = _pick_best_by_slot_votes(kept, roi_width)
         _debug_stage(zone, "after_slot_vote", kept)
-    else:
+    elif _enabled("CARD_CENTER_DEDUP", "false"):
         center_threshold = float(os.getenv("CENTER_X_DUP_PX", os.getenv("CARD_SLOT_CENTER_THRESHOLD", 55)))
         kept = _dedup_by_center(kept, center_threshold)
         _debug_stage(zone, "after_center", kept)
 
         kept = _pick_best_by_slot(kept, roi_width)
         _debug_stage(zone, "after_slot", kept)
+    elif _enabled("CARD_LAYOUT_AWARE_PICK", "true"):
+        kept = _pick_by_baccarat_layout(kept, roi_width, roi_height, zone)
+        _debug_stage(zone, "after_layout_pick", kept)
+    else:
+        kept = _pick_top_physical_cards(kept)
+        _debug_stage(zone, "after_top_physical", kept)
 
     if not _enabled("ALLOW_SAME_CARD_DUPLICATES", "true"):
         kept = _remove_duplicate_card_labels(kept)
@@ -238,7 +426,7 @@ def recognize_cards_in_roi(
                 "bbox": box.xyxy[0].tolist(),
             })
 
-    detected = _dedup_cards(detected, crop.shape[1], zone)
+    detected = _dedup_cards(detected, crop.shape[1], crop.shape[0], zone)
     logger.debug(f"Zone '{zone}' detected: {[d['card'] for d in detected]}")
     return detected
 

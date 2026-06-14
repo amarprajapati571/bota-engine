@@ -1,0 +1,18 @@
+{
+  "name": "bota-engine",
+  "version": "1.0.0",
+  "description": "A computer-vision pipeline that reads a baccarat round off a game screen: it captures the frame, detects the Player/Banker cards with **YOLOv8**, reads the on-screen score circles with **EasyOCR**, computes the hand result with a pure baccarat-rules engine, and **cross-validates** the two signals against each other before reporting a confidence level.",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@younestouati/playing-cards-standard-deck": "^6.0.1"
+  }
+}
