@@ -14,6 +14,8 @@ from pathlib import Path
 import requests
 from loguru import logger
 
+from api_client.payload_format import normalize_round_payload
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CSE_OUTBOX = PROJECT_ROOT / "logs" / "cse_outbox.jsonl"
 
@@ -71,22 +73,7 @@ def _review_payload(ai_response: dict) -> dict:
     visual order as the main card fields keeps manual feedback aligned with the
     image while still preserving deal-order fields for debugging/retraining.
     """
-    payload = dict(ai_response)
-    player_visual = ai_response.get("player_cards_visual_order")
-    banker_visual = ai_response.get("banker_cards_visual_order")
-
-    if player_visual:
-        payload["player_cards"] = list(player_visual)
-        payload["playerCards"] = list(player_visual)
-    if banker_visual:
-        payload["banker_cards"] = list(banker_visual)
-        payload["bankerCards"] = list(banker_visual)
-
-    payload["card_order_for_review"] = "visual_left_to_right"
-    payload["cardOrderForReview"] = "visual_left_to_right"
-    payload.setdefault("player_cards_deal_order", ai_response.get("player_cards_deal_order"))
-    payload.setdefault("banker_cards_deal_order", ai_response.get("banker_cards_deal_order"))
-    return payload
+    return normalize_round_payload(ai_response, review_order="visual")
 
 
 def send_cse_review(image_path: str, ai_response: dict) -> bool:

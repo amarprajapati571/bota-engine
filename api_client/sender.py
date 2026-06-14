@@ -13,6 +13,7 @@ import threading
 from loguru import logger
 
 from api_client.client import send_round
+from api_client.payload_format import normalize_round_payload
 
 _q: "queue.Queue[dict]" = queue.Queue()
 _stop = threading.Event()
@@ -21,7 +22,7 @@ _thread: "threading.Thread | None" = None
 
 def submit(payload: dict) -> None:
     """Queue a round for the background sender to POST."""
-    _q.put(payload)
+    _q.put(normalize_round_payload(payload, review_order="deal"))
 
 
 def _loop() -> None:
